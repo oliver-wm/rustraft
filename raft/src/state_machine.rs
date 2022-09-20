@@ -1,7 +1,6 @@
 use crate::log::{Log, LogEntry};
 use crate::message::{Io, MessageType, RequestVote};
-use crate::transport::Node;
-use crate::MessageType::{BecomeCandidate, RequestVoteMsg};
+use crate::MessageType::BecomeCandidate;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -87,7 +86,12 @@ impl RaftState {
 
     fn become_candidate(&mut self) -> MessageType {
         self.role = Role::Candidate;
-        self.current_term += 1;
+        // if self.current_term.is_some() {
+        //     self.current_term += 1;
+        // }else {
+        //     self.current_term = Some(0);
+        // };
+        // self.current_term.unwrap() += 1;
         // need self.voted_for
         self.votes_received.drain();
 
@@ -123,7 +127,7 @@ impl RaftState {
 
         let server_last_term;
         if server_last_index.is_some() {
-            server_last_term = raft_state.log.log[server_last_index.unwrap()].term;
+            server_last_term = self.log.log[server_last_index.unwrap()].term;
         } else {
             server_last_term = None;
         }
@@ -161,7 +165,7 @@ impl RaftState {
             None => result,
             Some(index) => {
                 for (i, val) in self.log.log.iter().enumerate() {
-                    if i >= index + 1 {
+                    if i > index {
                         result.push(val.clone());
                     }
                 }
@@ -199,7 +203,7 @@ mod tests {
     use crate::log::LogEntry;
     use crate::message;
     use crate::message::{AppendEntries, AppendEntriesResponse, Io};
-    use crate::MessageType::{AppendEntriesMsg, AppendEntriesResponseMsg};
+    use crate::MessageType::AppendEntriesResponseMsg;
 
     #[test]
     fn test_something() {

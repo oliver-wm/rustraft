@@ -1,8 +1,5 @@
 use crate::log::{LogEntry, Value};
 use crate::state_machine::{RaftState, Role};
-use crate::transport::Node;
-use crate::Log;
-use std::collections::HashMap;
 
 // another idea?
 // pub trait MessageHandler {
@@ -110,12 +107,10 @@ impl RequestVote {
                 vote_granted = false;
             } else if server_last_term < self.last_term {
                 vote_granted = true;
+            } else if server_last_index > self.last_index {
+                vote_granted = false;
             } else {
-                if server_last_index > self.last_index {
-                    vote_granted = false;
-                } else {
-                    vote_granted = true;
-                }
+                vote_granted = true;
             }
         }
 
@@ -144,13 +139,13 @@ impl RequestVoteResponse {
         }
 
         if self.vote_granted {
-            raft_state.votes_received[&self.io.src] = 1;
+            raft_state.votes_received.insert(self.io.src, 1);
         }
 
-        if raft_state.role == Role::Candidate {
-            if raft_state.votes_received.values().len() >= raft_state.votes_received.len() / 2 {
-                raft_state.become_leader();
-            }
+        if raft_state.role == Role::Candidate
+            && raft_state.votes_received.values().len() >= raft_state.votes_received.len() / 2
+        {
+            raft_state.become_leader();
         }
 
         MessageType::NoneMsg
@@ -230,13 +225,11 @@ impl AppendEntriesResponse {
                     // send application msg here
                 }
             }
-        } else {
-            if raft_state.next_index.get(&self.io.src).unwrap() > &(0 as usize) {
-                raft_state.next_index.insert(
-                    self.io.src,
-                    raft_state.next_index.get(&self.io.src).unwrap() - 1,
-                );
-            }
+        } else if raft_state.next_index.get(&self.io.src).unwrap() > &(0 as usize) {
+            raft_state.next_index.insert(
+                self.io.src,
+                raft_state.next_index.get(&self.io.src).unwrap() - 1,
+            );
         }
 
         MessageType::NoneMsg
@@ -288,7 +281,7 @@ impl HeartBeat {
 #[cfg(test)]
 mod tests {
     use crate::log::LogEntry;
-    use crate::message::{AppendEntries, AppendEntriesResponse, ClientRequest, Io, UpdateFollower};
+    use crate::message::{AppendEntries, AppendEntriesResponse, ClientRequest, Io};
     use crate::MessageType::{ClientRequestMsg, HeartBeatMsg, NoneMsg, UpdateFollowerMsg};
     use crate::{HeartBeat, MessageType, RaftState};
 
